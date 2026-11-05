@@ -123,6 +123,77 @@ const FORMATS = {
 };
 
 /* ==========================================================================
+ * COLOR RAMPS
+ * ========================================================================== */
+
+/** Step labels of the eleven-rung ramp, as the color pages number them. */
+const RAMP_LABELS = Array.from({ length: 11 }, (_, i) => (i === 0 ? 50 : i * 100));
+
+/**
+ * The shade ramp of the catalog color each swatch links to, one entry per
+ * palette color, null where nothing in the catalog matches. Both the strips
+ * under the swatches and the "+ color ramps" copy buttons read from here, so
+ * what gets copied is exactly what is on screen.
+ */
+export function paletteRamps(colors, colorIndex = []) {
+  return colors.map((hex) => {
+    const match = nearestColor(hex, colorIndex);
+    if (!match) return null;
+    return {
+      match,
+      steps: ramp(match.hex, 11).map((step, i) => ({ label: RAMP_LABELS[i], hex: step })),
+    };
+  });
+}
+
+const rgbString = (hex) => {
+  const { r, g, b } = hexToRgb(hex);
+  return `rgb(${r}, ${g}, ${b})`;
+};
+
+/**
+ * The palette followed by each color's ramp. Ramps are keyed by palette
+ * position rather than by color name, because two swatches can resolve to the
+ * same catalog color and the names would collide.
+ */
+const RAMP_FORMATS = {
+  hex: (colors, ramps) => listWithRamps(colors, ramps, (hex) => `#${hex.toUpperCase()}`),
+
+  rgb: (colors, ramps) => listWithRamps(colors, ramps, rgbString),
+
+  css: (colors, ramps) => {
+    const lines = colors.map((hex, i) => `  --color-${i + 1}: #${hex};`);
+    ramps.forEach((entry, i) => {
+      if (!entry) return;
+      lines.push('', `  /* color ${i + 1} ramp: ${entry.match.name} */`);
+      for (const step of entry.steps) {
+        lines.push(`  --color-${i + 1}-${step.label}: #${step.hex};`);
+      }
+    });
+    return `:root {\n${lines.join('\n')}\n}`;
+  },
+
+  // The palette first, then one array per ramp, in palette order.
+  array: (colors, ramps) =>
+    JSON.stringify([
+      colors.map((hex) => `#${hex}`),
+      ...ramps.filter(Boolean).map((entry) => entry.steps.map((step) => `#${step.hex}`)),
+    ]),
+};
+
+function listWithRamps(colors, ramps, format) {
+  const blocks = [colors.map(format).join(', ')];
+  ramps.forEach((entry, i) => {
+    if (!entry) return;
+    blocks.push(
+      `Color ${i + 1} ramp (${entry.match.name}): ` +
+        entry.steps.map((step) => `${step.label} ${format(step.hex)}`).join(', '),
+    );
+  });
+  return blocks.join('\n\n');
+}
+
+/* ==========================================================================
  * RENDERING
  * ========================================================================== */
 
@@ -132,8 +203,9 @@ const FORMATS = {
  * ones that arrive via a rewrite. One source of truth, same as card.js.
  */
 export function swatchesHTML(colors, colorIndex = []) {
+  const ramps = paletteRamps(colors, colorIndex);
   return colors
-    .map((hex) => {
+    .map((hex, position) => {
       const upper = `#${hex.toUpperCase()}`;
       const { r, g, b } = hexToRgb(hex);
       const { h, s, l } = hexToHsl(hex);
@@ -153,7 +225,7 @@ export function swatchesHTML(colors, colorIndex = []) {
        * own description: #6C7C59 reads as a muted lime and the page it links to
        * is Olive. Naming it avoids the surprise.
        */
-      const match = nearestColor(hex, colorIndex);
+      const match = ramps[position]?.match ?? null;
       /*
        * The same eleven-step strip the linked color page opens with, built
        * from the catalog hex rather than this swatch's, so it previews exactly
@@ -162,10 +234,9 @@ export function swatchesHTML(colors, colorIndex = []) {
        */
       const strip = match
         ? `<div class="ramp-strip ramp-strip--compact">` +
-            ramp(match.hex, 11)
-              .map((step, index) => {
+            ramps[position].steps
+              .map(({ label, hex: step }) => {
                 const stepUpper = `#${step.toUpperCase()}`;
-                const label = index === 0 ? 50 : index * 100;
                 const onWhiteStep = contrastRatio(step, 'ffffff').toFixed(2);
                 return (
                   `<button type="button" class="ramp-strip__step" ` +
@@ -226,8 +297,8 @@ function readColorIndex() {
   }
 }
 
-function renderSwatches(root, colors) {
-  root.innerHTML = swatchesHTML(colors, readColorIndex());
+function renderSwatches(root, colors, colorIndex) {
+  root.innerHTML = swatchesHTML(colors, colorIndex);
 }
 
 /* ==========================================================================
@@ -351,8 +422,11 @@ export function initDetail() {
   if (heading) heading.textContent = hexList;
 
   /* --- Bands --------------------------------------------------------------- */
+  const colorIndex = readColorIndex();
+  const ramps = paletteRamps(colors, colorIndex);
+
   const swatchRoot = root.querySelector('[data-detail-swatches]');
-  if (swatchRoot) renderSwatches(swatchRoot, colors);
+  if (swatchRoot) renderSwatches(swatchRoot, colors, colorIndex);
 
   /* --- Preview image -------------------------------------------------------
    * Pre-rendered pages already carry a real file in src. The rest get a blob
@@ -384,6 +458,16 @@ export function initDetail() {
       showToast(ok ? `${hex} copied` : 'Copy failed');
       swatch.classList.add('is-copied');
       setTimeout(() => swatch.classList.remove('is-copied'), 400);
+      return;
+    }
+
+    // Copy the palette plus every color's ramp in the selected format
+    const copyRamps = event.target.closest('[data-copy-ramps-format]');
+    if (copyRamps) {
+      const format = copyRamps.dataset.copyRampsFormat;
+      const text = (RAMP_FORMATS[format] ?? RAMP_FORMATS.hex)(colors, ramps);
+      const ok = await copyText(text);
+      showToast(ok ? `Copied with ramps as ${format.toUpperCase()}` : 'Copy failed');
       return;
     }
 

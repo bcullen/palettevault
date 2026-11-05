@@ -822,6 +822,11 @@ button {
 	color: var(--text-muted);
 }
 
+/* A group that starts a line of its own below the others. */
+.detail-actions__group--row {
+	flex-basis: 100%;
+}
+
 .detail-actions__buttons {
 	display: flex;
 	flex-wrap: wrap;

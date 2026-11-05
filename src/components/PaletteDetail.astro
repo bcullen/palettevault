@@ -172,6 +172,26 @@ const COPY_FORMATS = [
 					</button>
 				</div>
 			</div>
+
+			{/*
+			 * Its own full-width row: the palette followed by the shade ramp of
+			 * each swatch's catalog color, the strips shown under the swatches.
+			 */}
+			<div class='detail-actions__group detail-actions__group--row'>
+				<span class='detail-actions__label'>Copy palette + color ramps</span>
+				<div class='detail-actions__buttons'>
+					{
+						COPY_FORMATS.map((format) => (
+							<button
+								type='button'
+								class='action'
+								data-copy-ramps-format={format.id}>
+								{format.label}
+							</button>
+						))
+					}
+				</div>
+			</div>
 		</div>
 
 		<figure class='detail-preview'>
