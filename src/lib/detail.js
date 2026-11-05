@@ -460,13 +460,28 @@ export function initDetail() {
   if (image) {
     image.alt = `Color palette ${hexList}`;
 
-    if (!image.getAttribute('src')) {
+    const drawImage = () =>
       renderImage(colors).toBlob((blob) => {
         if (!blob) return;
         image.src = URL.createObjectURL(blob);
         // Not revoked: the object URL has to stay valid for the lifetime of
         // the page, otherwise the image goes blank and saving it breaks.
       }, 'image/png');
+
+    if (!image.getAttribute('src')) {
+      drawImage();
+    } else {
+      /*
+       * A pre-rendered page points at /p/<slug>.png, which only exists once
+       * `npm run images` has run. The deploy runs it; a local dev server
+       * usually has not, and the page showed a broken image. Draw the same
+       * picture on a canvas instead. `once`, so a failing blob cannot loop.
+       *
+       * The image is lazy, so it may already have failed before this script
+       * ran; a complete image with no width is that case.
+       */
+      if (image.complete && image.naturalWidth === 0) drawImage();
+      else image.addEventListener('error', drawImage, { once: true });
     }
   }
 
