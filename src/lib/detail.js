@@ -106,10 +106,10 @@ async function copyText(text) {
 const FORMATS = {
   hex: (colors) => colors.map((hex) => `#${hex.toUpperCase()}`).join(', '),
 
-  css: (colors) =>
-    `:root {\n${colors
-      .map((hex, i) => `  --color-${i + 1}: #${hex};`)
-      .join('\n')}\n}`,
+  css: (colors) => {
+    const names = variableNames(colors);
+    return `:root {\n${colors.map((hex, i) => `  --${names[i]}: #${hex};`).join('\n')}\n}`;
+  },
 
   rgb: (colors) =>
     colors
@@ -151,23 +151,20 @@ const rgbString = (hex) => {
   return `rgb(${r}, ${g}, ${b})`;
 };
 
-/**
- * The palette followed by each color's ramp. Ramps are keyed by palette
- * position rather than by color name, because two swatches can resolve to the
- * same catalog color and the names would collide.
- */
+/** The palette followed by each color's ramp. */
 const RAMP_FORMATS = {
   hex: (colors, ramps) => listWithRamps(colors, ramps, (hex) => `#${hex.toUpperCase()}`),
 
   rgb: (colors, ramps) => listWithRamps(colors, ramps, rgbString),
 
   css: (colors, ramps) => {
-    const lines = colors.map((hex, i) => `  --color-${i + 1}: #${hex};`);
+    const names = variableNames(colors);
+    const lines = colors.map((hex, i) => `  --${names[i]}: #${hex};`);
     ramps.forEach((entry, i) => {
       if (!entry) return;
-      lines.push('', `  /* color ${i + 1} ramp: ${entry.match.name} */`);
+      lines.push('', `  /* ${names[i]} ramp: ${entry.match.name} */`);
       for (const step of entry.steps) {
-        lines.push(`  --color-${i + 1}-${step.label}: #${step.hex};`);
+        lines.push(`  --${names[i]}-${step.label}: #${step.hex};`);
       }
     });
     return `:root {\n${lines.join('\n')}\n}`;
@@ -180,6 +177,31 @@ const RAMP_FORMATS = {
       ...ramps.filter(Boolean).map((entry) => entry.steps.map((step) => `#${step.hex}`)),
     ]),
 };
+
+/** "Light muted green" → "lightMutedGreen". */
+const camelCase = (text) =>
+  text
+    .split(/[^a-zA-Z0-9]+/)
+    .filter(Boolean)
+    .map((word, i) =>
+      i === 0 ? word.toLowerCase() : word[0].toUpperCase() + word.slice(1).toLowerCase(),
+    )
+    .join('');
+
+/**
+ * CSS variable names from each swatch's description, the label shown on the
+ * swatch itself. Similar colors often share a description, so a repeat gets a
+ * number, mutedCyan then mutedCyan2, or the second would overwrite the first.
+ */
+function variableNames(colors) {
+  const seen = new Map();
+  return colors.map((hex) => {
+    const base = camelCase(describeColor(hex)) || 'color';
+    const count = (seen.get(base) ?? 0) + 1;
+    seen.set(base, count);
+    return count === 1 ? base : `${base}${count}`;
+  });
+}
 
 function listWithRamps(colors, ramps, format) {
   const blocks = [colors.map(format).join(', ')];
