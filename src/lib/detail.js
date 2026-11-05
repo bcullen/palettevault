@@ -37,6 +37,7 @@ import {
   paletteSlug,
 } from './palette.js';
 import { nearestColor } from './nearest-color.js';
+import { ramp } from './oklch.js';
 import { isLiked, toggleLike } from './store.js';
 import { updateCollectionBadge } from './gallery.js';
 
@@ -153,6 +154,32 @@ export function swatchesHTML(colors, colorIndex = []) {
        * is Olive. Naming it avoids the surprise.
        */
       const match = nearestColor(hex, colorIndex);
+      /*
+       * The same eleven-step strip the linked color page opens with, built
+       * from the catalog hex rather than this swatch's, so it previews exactly
+       * what the explore link leads to. Steps carry data-hex, so the page's
+       * click handler copies them like the swatch above.
+       */
+      const strip = match
+        ? `<div class="ramp-strip ramp-strip--compact">` +
+            ramp(match.hex, 11)
+              .map((step, index) => {
+                const stepUpper = `#${step.toUpperCase()}`;
+                const label = index === 0 ? 50 : index * 100;
+                const onWhiteStep = contrastRatio(step, 'ffffff').toFixed(2);
+                return (
+                  `<button type="button" class="ramp-strip__step" ` +
+                  `style="background:${stepUpper}" data-hex="${stepUpper}" ` +
+                  `title="${label} · ${stepUpper} · ${onWhiteStep}:1 on white" ` +
+                  `aria-label="Copy ${match.name} ${label}, ${stepUpper}">` +
+                    `<span class="ramp-strip__label">${label}</span>` +
+                  `</button>`
+                );
+              })
+              .join('') +
+          `</div>`
+        : '';
+
       const explore = match
         ? `<a class="detail-swatch__explore" href="/colors/${match.slug}/" ` +
           `title="${match.name} color: hex codes, shades and palettes">` +
@@ -173,6 +200,7 @@ export function swatchesHTML(colors, colorIndex = []) {
               `<span class="detail-swatch__contrast">${onWhite}:1 on white · ${onBlack}:1 on black</span>` +
             `</span>` +
           `</button>` +
+          strip +
           explore +
         `</div>`
       );

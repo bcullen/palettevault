@@ -2066,6 +2066,23 @@ button {
 	flex: 1;
 }
 
+/* The color page's shade strip, repeated under each swatch. The cell's gap
+   already spaces it, and a narrow column wants a shorter bar. */
+.ramp-strip--compact {
+	height: 36px;
+	margin: 0;
+}
+
+.ramp-strip--compact .ramp-strip__label {
+	font-size: 9px;
+}
+
+/* Eleven steps in a narrow column leave each one a sliver, so the hovered step
+   grows further than on the color page to stay readable. */
+.ramp-strip--compact .ramp-strip__step:hover {
+	flex: 2.5;
+}
+
 .detail-swatch__explore {
 	display: inline-flex;
 	align-items: center;
